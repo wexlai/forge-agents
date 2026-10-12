@@ -126,7 +126,7 @@ A single Python 3.12 script. Its only dependency is PyYAML, run with `uv run --w
   - `MODEL_PROVIDER` in `.env.example` equals `providers[0]`;
   - `examples/` has at least one input/output pair.
   It prints every failure as `folder: message` and exits non-zero if there are any.
-- `index` rewrites the table between `<!-- agents:start -->` and `<!-- agents:end -->` in the root README. Columns: Agent (name, linked to the folder), Framework, Language, Status, Description, CI (badge). Rows are sorted by `id`, then by folder name, so implementations of one agent sit together. `deprecated` rows keep their place and show the status `deprecated`.
+- `index` rewrites the table between `<!-- agents:start -->` and `<!-- agents:end -->` in the root README. Columns: Agent (name, linked to the folder), Framework, Language, Status, Description. There is no CI column: every folder shares the `ci.yml` badge (§6.3), so the root README shows it once, above the table. Rows are sorted by `id`, then by folder name, so implementations of one agent sit together. `deprecated` rows keep their place and show the status `deprecated`.
 - `index --check` exits non-zero if the committed table differs from what `index` would write.
 - `matrix [--changed-from <ref>]` prints JSON for the CI matrix: one entry per folder, with its folder name, `runtime`, `commands.setup` and `commands.test`. With `--changed-from`, it lists only folders with changed files, unless `tools/`, `templates/` or `.github/` changed, in which case it lists all of them.
 - `stale --days 120` prints non-deprecated folders whose last commit (`git log -1 -- <folder>`) is older than the threshold.
@@ -152,7 +152,7 @@ Each agent's tests replace the model with a stub that returns canned responses, 
 
 ### 6.3 Per-agent badge
 
-Each folder's README badge shows the status of `ci.yml` for that folder. Because GitHub badges are per workflow, not per matrix entry, the nightly scheduled run is the source of truth. The badge links to `ci.yml` runs and the README row in the index shows the same badge. If per-folder precision turns out to matter, a later change can publish per-folder status JSON to a shields.io endpoint. That is out of scope here.
+Each folder's README badge shows the status of `ci.yml` for that folder. Because GitHub badges are per workflow, not per matrix entry, the nightly scheduled run is the source of truth. The badge links to `ci.yml` runs; the root README shows the same badge once, above the agent table. If per-folder precision turns out to matter, a later change can publish per-folder status JSON to a shields.io endpoint. That is out of scope here.
 
 ### 6.4 Renovate
 
