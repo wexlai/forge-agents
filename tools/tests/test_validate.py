@@ -154,3 +154,35 @@ def test_cli_validate_exit_codes(tmp_path, capsys):
     write_agent(tmp_path, folder="forge-bad-strands", manifest={"id": "bad"}, env=None)
     assert forge_repo.main(["--root", str(tmp_path), "validate"]) == 1
     assert "forge-bad-strands: .env.example is missing" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "override, message",
+    [
+        ({"framework": ["strands"]}, "agent.yaml: unknown framework ['strands'] (add it to FRAMEWORKS in tools/forge_repo.py)"),
+        ({"language": ["python"]}, "agent.yaml: unknown language ['python'] (add it to LANGUAGES in tools/forge_repo.py)"),
+        ({"providers": [{"openai": 1}]}, "agent.yaml: unknown provider {'openai': 1}"),
+    ],
+)
+def test_unhashable_manifest_values_are_reported_not_raised(tmp_path, override, message):
+    write_agent(tmp_path, manifest=override)
+    assert f"{NAME}: {message}" in forge_repo.validate(tmp_path)
+
+
+def test_matrix_skips_unhashable_manifest(tmp_path):
+    write_agent(tmp_path, manifest={"framework": ["strands"]})
+    assert forge_repo.matrix(tmp_path) == []
+
+
+@pytest.mark.parametrize("filename", ["README.md", ".env.example"])
+def test_non_utf8_files_are_reported_not_raised(tmp_path, filename):
+    d = write_agent(tmp_path)
+    (d / filename).write_bytes("caf\xe9".encode("latin-1"))
+    assert f"{NAME}: {filename} is not UTF-8 text" in forge_repo.validate(tmp_path)
+
+
+def test_invalid_yaml_error_is_one_line(tmp_path):
+    d = write_agent(tmp_path)
+    (d / "agent.yaml").write_text("id: [unclosed\n", encoding="utf-8")
+    [error] = forge_repo.validate(tmp_path)
+    assert "\n" not in error

@@ -61,12 +61,26 @@ def load_manifest(folder: Path) -> dict:
     if not path.is_file():
         raise ValueError("agent.yaml is missing")
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        data = yaml.safe_load(_read_text(path))
     except yaml.YAMLError as exc:
-        raise ValueError(f"agent.yaml is not valid YAML: {exc}") from exc
+        problem = getattr(exc, "problem", None) or str(exc).splitlines()[0]
+        mark = getattr(exc, "problem_mark", None)
+        where = f" (line {mark.line + 1})" if mark is not None else ""
+        raise ValueError(f"agent.yaml is not valid YAML: {problem}{where}") from exc
     if not isinstance(data, dict):
         raise ValueError("agent.yaml must be a mapping")
     return data
+
+
+def _read_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"{path.name} is not UTF-8 text") from exc
+
+
+def _known(value: object, allowed: frozenset[str]) -> bool:
+    return isinstance(value, str) and value in allowed
 
 
 def _non_empty_str(value: object) -> bool:
@@ -84,17 +98,17 @@ def check_manifest(m: dict) -> list[str]:
             errors.append(f"agent.yaml: {key} must be a non-empty string")
     if isinstance(m["description"], str) and len(m["description"]) > MAX_DESCRIPTION:
         errors.append(f"agent.yaml: description must be at most {MAX_DESCRIPTION} characters")
-    if m["framework"] not in FRAMEWORKS:
-        errors.append(f"agent.yaml: unknown framework '{m['framework']}' (add it to FRAMEWORKS in tools/forge_repo.py)")
-    if m["language"] not in LANGUAGES:
-        errors.append(f"agent.yaml: unknown language '{m['language']}' (add it to LANGUAGES in tools/forge_repo.py)")
+    if not _known(m["framework"], FRAMEWORKS):
+        errors.append(f"agent.yaml: unknown framework {m['framework']!r} (add it to FRAMEWORKS in tools/forge_repo.py)")
+    if not _known(m["language"], LANGUAGES):
+        errors.append(f"agent.yaml: unknown language {m['language']!r} (add it to LANGUAGES in tools/forge_repo.py)")
     if m["status"] not in STATUSES:
         errors.append(f"agent.yaml: status must be one of: {', '.join(STATUSES)}")
     providers = m["providers"]
     if not isinstance(providers, list) or not providers:
         errors.append("agent.yaml: providers must be a non-empty list")
     else:
-        errors += [f"agent.yaml: unknown provider '{p}'" for p in providers if p not in PROVIDERS]
+        errors += [f"agent.yaml: unknown provider {p!r}" for p in providers if not _known(p, PROVIDERS)]
     commands = m["commands"]
     if not isinstance(commands, dict):
         errors.append("agent.yaml: commands must be a mapping")
@@ -121,7 +135,7 @@ def check_manifest(m: dict) -> list[str]:
 
 def read_env_example(path: Path) -> dict[str, str]:
     values: dict[str, str] = {}
-    for raw in path.read_text(encoding="utf-8").splitlines():
+    for raw in _read_text(path).splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -141,6 +155,14 @@ def has_example_pair(examples: Path) -> bool:
     return any(k == {"input", "output"} for k in kinds.values())
 
 
+def _check_env_example(values: dict[str, str], providers: object) -> list[str]:
+    errors = [f".env.example: {key} must be set" for key in ("MODEL_PROVIDER", "MODEL_ID") if not values.get(key)]
+    provider = values.get("MODEL_PROVIDER")
+    if provider and isinstance(providers, list) and providers and provider != providers[0]:
+        errors.append(f".env.example: MODEL_PROVIDER is '{provider}' but providers[0] in agent.yaml is '{providers[0]}'")
+    return errors
+
+
 def check_folder(folder: Path) -> list[str]:
     try:
         m = load_manifest(folder)
@@ -156,24 +178,22 @@ def check_folder(folder: Path) -> list[str]:
     if not readme.is_file():
         errors.append("README.md is missing")
     else:
-        found = iter(HEADING.findall(readme.read_text(encoding="utf-8")))
-        if not all(h in found for h in README_HEADINGS):
-            errors.append("README.md: needs these ## headings in order: " + ", ".join(README_HEADINGS))
+        try:
+            found = iter(HEADING.findall(_read_text(readme)))
+        except ValueError as exc:
+            errors.append(str(exc))
+        else:
+            if not all(h in found for h in README_HEADINGS):
+                errors.append("README.md: needs these ## headings in order: " + ", ".join(README_HEADINGS))
 
     env_example = folder / ".env.example"
     if not env_example.is_file():
         errors.append(".env.example is missing")
     else:
-        values = read_env_example(env_example)
-        for key in ("MODEL_PROVIDER", "MODEL_ID"):
-            if not values.get(key):
-                errors.append(f".env.example: {key} must be set")
-        providers = m.get("providers")
-        provider = values.get("MODEL_PROVIDER")
-        if provider and isinstance(providers, list) and providers and provider != providers[0]:
-            errors.append(
-                f".env.example: MODEL_PROVIDER is '{provider}' but providers[0] in agent.yaml is '{providers[0]}'"
-            )
+        try:
+            errors += _check_env_example(read_env_example(env_example), m.get("providers"))
+        except ValueError as exc:
+            errors.append(str(exc))
 
     if not has_example_pair(folder / "examples"):
         errors.append("examples/ needs at least one <name>.input.<ext> and <name>.output.<ext> pair")
