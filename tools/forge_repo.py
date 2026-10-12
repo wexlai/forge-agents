@@ -15,8 +15,11 @@ Run with: uv run tools/forge_repo.py <command>
 from __future__ import annotations
 
 import argparse
+import json
 import re
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 import yaml
@@ -230,6 +233,75 @@ def update_index(root: Path, check: bool = False) -> bool:
     return False
 
 
+def select_folders(folders: list[Path], changed: list[str] | None) -> list[Path]:
+    if changed is None or any(path.startswith(SHARED_PREFIXES) for path in changed):
+        return folders
+    touched = {path.split("/", 1)[0] for path in changed}
+    return [f for f in folders if f.name in touched]
+
+
+def git_changed_files(root: Path, ref: str) -> list[str]:
+    result = subprocess.run(
+        ["git", "diff", "--name-only", f"{ref}...HEAD"], cwd=root, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        raise ValueError(f"git diff failed for '{ref}': {result.stderr.strip()}")
+    return [line for line in result.stdout.splitlines() if line]
+
+
+def matrix(
+    root: Path, changed_from: str | None = None, agent: str | None = None, skip_deprecated: bool = False
+) -> list[dict]:
+    folders = agent_folders(root)
+    if agent is not None:
+        name = agent.rstrip("/")
+        folders = [f for f in folders if f.name == name]
+        if not folders:
+            raise ValueError(f"{name}: no such agent folder")
+    elif changed_from is not None:
+        folders = select_folders(folders, git_changed_files(root, changed_from))
+    entries = []
+    for folder in folders:
+        try:
+            m = load_manifest(folder)
+        except ValueError as exc:
+            print(f"{folder.name}: skipped: {exc}", file=sys.stderr)
+            continue
+        if check_manifest(m):
+            print(f"{folder.name}: skipped: invalid agent.yaml (run validate)", file=sys.stderr)
+            continue
+        if skip_deprecated and m["status"] == "deprecated":
+            continue
+        kind, version = next(iter(m["runtime"].items()))
+        entries.append(
+            {"folder": folder.name, "runtime": kind, "version": version, **{c: m["commands"][c] for c in COMMANDS}}
+        )
+    return entries
+
+
+def last_commit_time(root: Path, folder: Path) -> int | None:
+    result = subprocess.run(
+        ["git", "log", "-1", "--format=%ct", "--", folder.name], cwd=root, capture_output=True, text=True
+    )
+    out = result.stdout.strip()
+    return int(out) if result.returncode == 0 and out else None
+
+
+def stale_folders(root: Path, days: int, now: float | None = None) -> list[str]:
+    cutoff = (time.time() if now is None else now) - days * 86400
+    stale = []
+    for folder in agent_folders(root):
+        try:
+            if load_manifest(folder).get("status") == "deprecated":
+                continue
+        except ValueError:
+            pass
+        committed = last_commit_time(root, folder)
+        if committed is not None and committed < cutoff:
+            stale.append(folder.name)
+    return stale
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="forge_repo", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -240,6 +312,13 @@ def main(argv: list[str] | None = None) -> int:
     p_validate.add_argument("folders", nargs="*")
     p_index = sub.add_parser("index", help="rewrite the agent table in README.md")
     p_index.add_argument("--check", action="store_true", help="fail if the table is out of date; do not write")
+    p_matrix = sub.add_parser("matrix", help="print the CI matrix as JSON")
+    group = p_matrix.add_mutually_exclusive_group()
+    group.add_argument("--changed-from", metavar="REF", help="only folders changed since REF")
+    group.add_argument("--agent", metavar="NAME", help="only this agent folder")
+    p_matrix.add_argument("--skip-deprecated", action="store_true")
+    p_stale = sub.add_parser("stale", help="list agent folders with no recent commit")
+    p_stale.add_argument("--days", type=int, default=120)
     args = parser.parse_args(argv)
     root = args.root.resolve()
 
@@ -265,6 +344,18 @@ def main(argv: list[str] | None = None) -> int:
         if args.check and not current:
             print("README.md agent table is out of date; run: uv run tools/forge_repo.py index", file=sys.stderr)
             return 1
+        return 0
+    if args.command == "matrix":
+        try:
+            entries = matrix(root, args.changed_from, args.agent, args.skip_deprecated)
+        except ValueError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        print(json.dumps(entries))
+        return 0
+    if args.command == "stale":
+        for name in stale_folders(root, args.days):
+            print(name)
         return 0
     return 2
 
