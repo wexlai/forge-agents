@@ -11,6 +11,9 @@ Each folder is one agent built on one framework. Folders share no code: copy one
 ## Agents
 
 <!-- agents:start -->
+| Agent | Framework | Language | Status | Description |
+| --- | --- | --- | --- | --- |
+| [Forge Spec](forge-spec-strands-python/) | strands | python | beta | Turns notes, transcripts and docs into epics, stories and acceptance criteria |
 <!-- agents:end -->
 
 ## Run an agent

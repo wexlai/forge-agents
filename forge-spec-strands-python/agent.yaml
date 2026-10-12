@@ -1,0 +1,15 @@
+id: spec
+name: Forge Spec
+framework: strands
+language: python
+status: beta
+description: "Turns notes, transcripts and docs into epics, stories and acceptance criteria"
+catalog: https://wexlai.com/forge/forge-spec
+providers: [openai, anthropic, bedrock]
+commands:
+  setup: uv sync
+  test: uv run pytest
+  example: uv run forge-spec examples/refinement-call.input.txt
+runtime:
+  python: "3.12"
+maintainers: ["@wexlai/forge"]

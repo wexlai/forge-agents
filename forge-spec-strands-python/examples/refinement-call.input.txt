@@ -1,0 +1,47 @@
+Refinement call: "Retry what I got wrong" for FluentEdge Practice BETs
+Attendees: Product manager (PM), Tech lead (TL), Designer (DS), QA lead (QA)
+Duration: 21 minutes. Transcript lightly cleaned of filler words.
+
+[00:00:15] PM: Okay, one item today. Learners finish a Practice BET, see their score, and then the only option is to retake the whole thing. Eight questions. Support tickets say people want to redo just the ones they got wrong.
+[00:00:41] TL: Is this all four skills or just reading and listening? Speaking and writing are AI-evaluated, there isn't really a "wrong" answer.
+[00:00:58] PM: Good point. Let's say for now, reading and listening only. Those are the MCQ ones.
+[00:01:20] DS: Where does the button live? On the result screen, I assume. Next to "Retake test".
+[00:01:31] PM: Yes. Something like "Retry the 3 you missed". With the count.
+[00:01:44] QA: What if they got everything right?
+[00:01:49] PM: Then don't show the button. Maybe a "Nice work" line instead.
+[00:02:05] TL: Does a retry count towards their score? Because the Summative score is what recruiters see.
+[00:02:16] PM: No. Retries are practice only. They should not change the Practice BET score that's already recorded, and definitely nothing on the Summative.
+[00:02:40] DS: Should the retry show the same options in the same order? If it's the same order they'll just remember the position.
+[00:02:52] TL: We can shuffle the options. The question bank already supports that.
+[00:03:05] PM: Shuffle, yes.
+[00:03:30] QA: Do we show the correct answer after the retry, or during?
+[00:03:41] PM: After. Same as the normal test. Show which ones they now got right, and for anything still wrong, show the correct answer and the explanation.
+[00:04:10] TL: The explanations only exist for about 70 percent of the reading questions. Listening has almost none.
+[00:04:22] PM: Then show the correct answer, and the explanation where we have it. Content team can backfill. Let's not block on that.
+[00:05:02] DS: Can they retry the retry? Like keep going until they get everything?
+[00:05:12] PM: I'd say yes, until they've got them all right. Or they can stop any time.
+[00:05:25] TL: That's a loop. Do we need a cap? Each attempt writes rows.
+[00:05:36] PM: Hmm. I don't know. Let's not cap it for now but I want to know how many attempts people actually do.
+[00:05:50] TL: So an event per retry attempt. I'll make sure analytics gets attempt number and how many were still wrong.
+[00:06:30] DS: One idea: what if we also let them retry the questions they got right but were slow on? Like over 60 seconds.
+[00:06:44] PM: Interesting, but no, not in this one. Keep it to wrong answers. Park it.
+[00:07:15] QA: Mobile. The result screen on mobile already has two buttons stacked. A third makes it long.
+[00:07:28] DS: I'll make "Retry what you missed" the primary on both. "Retake test" becomes a text link. That's actually the better default anyway.
+[00:07:40] PM: Agreed.
+[00:08:20] TL: What about timing? The real Practice BET is timed. Is the retry timed?
+[00:08:31] PM: No timer on retries. It's for learning, not for measuring.
+[00:09:02] QA: Is this for all users or only the paid tier?
+[00:09:10] PM: I need to check with the business side. Write it down as open.
+[00:09:45] TL: Offline? Some institutions use it on patchy wifi.
+[00:09:55] PM: Same behaviour as the normal test. If the normal test needs a connection, so does this.
+[00:10:30] QA: And if they close the app in the middle of a retry?
+[00:10:39] PM: They lose that retry, no big deal, they can start again from the result screen. Don't build resume.
+[00:11:15] TL: One more. Institutions see reports. Do retries show in the teacher dashboard?
+[00:11:27] PM: Not in this release. But the data should be there so we can add it later.
+[00:12:00] DS: Copy for the button. "Retry the 3 you missed" or "Practise the 3 you missed"?
+[00:12:12] PM: "Retry the 3 you missed". Plain.
+[00:12:30] QA: Singular. "Retry the 1 you missed" reads odd.
+[00:12:38] DS: "Retry the one you missed" when it's one. I'll write both strings.
+[00:13:05] PM: Good. Target is the sprint after next. Tech lead, size it once the stories are written.
+[00:13:20] TL: Will do. Send me the stories with the open questions on top.
+[End of call]

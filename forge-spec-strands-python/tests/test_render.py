@@ -94,3 +94,9 @@ def test_jira_csv_survives_awkward_text(sample_payload):
     sample_payload["epics"][0]["stories"][0]["title"] = awkward
     rows = list(csv.reader(io.StringIO(to_jira_csv(SpecResult.model_validate(sample_payload)))))
     assert rows[2][3] == awkward
+
+
+def test_plain_rule_starts_with_a_capital(sample_payload):
+    sample_payload["epics"][0]["stories"][0]["criteria"][1]["then"] = "the retry has no timer"
+    out = to_markdown(SpecResult.model_validate(sample_payload))
+    assert "- The retry has no timer. [00:08:31]\n" in out

@@ -24,7 +24,8 @@ def _criterion(c: Criterion) -> str:
         parts = [f"Given {_clause(c.given)}" if c.given else "", f"when {_clause(c.when)}" if c.when else ""]
         parts = [p for p in parts if p] + [f"then {c.then.strip()}"]
     else:
-        parts = [c.then.strip()]
+        rule = c.then.strip()
+        parts = [rule[:1].upper() + rule[1:]]
     body = ",\n  ".join(parts[:-1] + [_sentence(parts[-1])])
     return f"- {body}{_refs(c.sources)}"
 
