@@ -1,6 +1,8 @@
 import copy
+import json
 
 import pytest
+from strands.models.model import Model
 
 from forge_spec.models import SpecResult
 
@@ -51,3 +53,36 @@ def sample_payload() -> dict:
 @pytest.fixture
 def sample_result() -> SpecResult:
     return SpecResult.model_validate(SAMPLE)
+
+
+
+class StubModel(Model):
+    """Stands in for a real provider: answers by calling the first offered tool with a fixed payload.
+
+    Strands delivers structured output through a tool named after the output model, so this drives the
+    real agent loop without a network call.
+    """
+
+    def __init__(self, payload: dict | None = None, error: Exception | None = None):
+        self.payload = payload
+        self.error = error
+        self.calls: list[dict] = []
+
+    def update_config(self, **model_config):
+        pass
+
+    def get_config(self):
+        return {}
+
+    async def structured_output(self, output_model, prompt, system_prompt=None, **kwargs):
+        yield {"output": output_model.model_validate(self.payload)}
+
+    async def stream(self, messages, tool_specs=None, system_prompt=None, **kwargs):
+        self.calls.append({"messages": messages, "tool_specs": tool_specs, "system_prompt": system_prompt})
+        if self.error is not None:
+            raise self.error
+        yield {"messageStart": {"role": "assistant"}}
+        yield {"contentBlockStart": {"start": {"toolUse": {"toolUseId": "t1", "name": tool_specs[0]["name"]}}}}
+        yield {"contentBlockDelta": {"delta": {"toolUse": {"input": json.dumps(self.payload)}}}}
+        yield {"contentBlockStop": {}}
+        yield {"messageStop": {"stopReason": "tool_use"}}
