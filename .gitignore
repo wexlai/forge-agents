@@ -1,0 +1,28 @@
+# Secrets: never commit a real .env
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node
+node_modules/
+
+# JVM
+target/
+build/
+.gradle/
+
+# Build output
+dist/
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
