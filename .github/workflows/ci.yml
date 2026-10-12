@@ -1,0 +1,94 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 2 * * *"   # nightly: test every agent so the badge stays honest
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: "Agent folder to test (leave empty for all)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+      any: ${{ steps.m.outputs.any }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - id: m
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+          AGENT: ${{ inputs.agent }}
+        run: |
+          args=()
+          case "$EVENT" in
+            pull_request) args=(--changed-from "$BASE") ;;
+            push)
+              if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
+                args=(--changed-from "$BEFORE")
+              fi ;;
+            workflow_dispatch)
+              if [ -n "$AGENT" ]; then args=(--agent "$AGENT"); fi ;;
+          esac
+          m=$(uv run tools/forge_repo.py matrix "${args[@]}")
+          echo "matrix=$m" >> "$GITHUB_OUTPUT"
+          if [ "$m" = "[]" ]; then echo "any=false" >> "$GITHUB_OUTPUT"; else echo "any=true" >> "$GITHUB_OUTPUT"; fi
+
+  test:
+    needs: detect
+    if: needs.detect.outputs.any == 'true'
+    name: ${{ matrix.folder }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.detect.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+      - if: matrix.runtime == 'python'
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.version }}
+      - if: matrix.runtime == 'python'
+        uses: astral-sh/setup-uv@v6
+      - if: matrix.runtime == 'node'
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.version }}
+      - if: matrix.runtime == 'java'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.version }}
+      - if: matrix.runtime == 'go'
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.version }}
+      - if: matrix.runtime == 'dotnet'
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ matrix.version }}
+      - name: Set up
+        working-directory: ${{ matrix.folder }}
+        env:
+          CMD: ${{ matrix.setup }}
+        run: bash -euo pipefail -c "$CMD"
+      - name: Test (no API keys)
+        working-directory: ${{ matrix.folder }}
+        env:
+          CMD: ${{ matrix.test }}
+        run: bash -euo pipefail -c "$CMD"

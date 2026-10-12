@@ -1,0 +1,116 @@
+name: live-examples
+
+on:
+  schedule:
+    - cron: "0 4 * * 1"   # weekly, Monday
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: "Agent folder to run (leave empty for all)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+      any: ${{ steps.m.outputs.any }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - id: m
+        env:
+          AGENT: ${{ inputs.agent }}
+        run: |
+          args=(--skip-deprecated)
+          if [ -n "$AGENT" ]; then args=(--agent "$AGENT"); fi
+          m=$(uv run tools/forge_repo.py matrix "${args[@]}")
+          echo "matrix=$m" >> "$GITHUB_OUTPUT"
+          if [ "$m" = "[]" ]; then echo "any=false" >> "$GITHUB_OUTPUT"; else echo "any=true" >> "$GITHUB_OUTPUT"; fi
+
+  run:
+    needs: detect
+    if: needs.detect.outputs.any == 'true'
+    name: ${{ matrix.folder }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.detect.outputs.matrix) }}
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+    steps:
+      - uses: actions/checkout@v5
+      - if: matrix.runtime == 'python'
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.version }}
+      - if: matrix.runtime == 'python'
+        uses: astral-sh/setup-uv@v6
+      - if: matrix.runtime == 'node'
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.version }}
+      - if: matrix.runtime == 'java'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.version }}
+      - if: matrix.runtime == 'go'
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.version }}
+      - if: matrix.runtime == 'dotnet'
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ matrix.version }}
+      - name: Configure from .env.example (keys come from secrets)
+        working-directory: ${{ matrix.folder }}
+        run: cp .env.example .env
+      - name: Set up
+        working-directory: ${{ matrix.folder }}
+        env:
+          CMD: ${{ matrix.setup }}
+        run: bash -euo pipefail -c "$CMD"
+      - name: Run the example against a real model
+        working-directory: ${{ matrix.folder }}
+        env:
+          CMD: ${{ matrix.example }}
+          OUT: ${{ runner.temp }}/out/${{ matrix.folder }}.txt
+        run: |
+          mkdir -p "$(dirname "$OUT")"
+          bash -euo pipefail -c "$CMD" > "$OUT"
+          test -s "$OUT"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ matrix.folder }}
+          path: ${{ runner.temp }}/out/
+          if-no-files-found: ignore
+      - name: Open or update an issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          FOLDER: ${{ matrix.folder }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create live-example-failure --color D4C5F9 --force >/dev/null
+          gh label create "agent:$FOLDER" --color C5DEF5 --force >/dev/null
+          number=$(gh issue list --state open --label live-example-failure --label "agent:$FOLDER" --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "Still failing: $RUN_URL"
+          else
+            gh issue create --title "Live example failing: $FOLDER" \
+              --label live-example-failure --label "agent:$FOLDER" \
+              --body "The live run of \`$FOLDER\` against a real model failed: $RUN_URL"
+          fi

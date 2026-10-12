@@ -1,0 +1,33 @@
+name: staleness
+
+on:
+  schedule:
+    - cron: "0 5 1 * *"   # monthly
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - name: Open an issue for each stale agent
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh label create stale-agent --color FBCA04 --force >/dev/null
+          uv run tools/forge_repo.py stale --days 120 | while read -r folder; do
+            title="Refresh or deprecate $folder"
+            existing=$(gh issue list --state open --label stale-agent --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
+            if [ -z "$existing" ]; then
+              gh issue create --title "$title" --label stale-agent \
+                --body "\`$folder\` has had no commit in 120 days. Update its dependencies and example, or set \`status: deprecated\` in its agent.yaml."
+            fi
+          done

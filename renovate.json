@@ -1,0 +1,32 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "schedule": ["before 6am on monday"],
+  "labels": ["dependencies"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
+  },
+  "packageRules": [
+    {
+      "description": "One branch per agent folder",
+      "matchFileNames": ["forge-*/**"],
+      "additionalBranchPrefix": "{{parentDir}}-",
+      "commitMessageSuffix": "({{parentDir}})"
+    },
+    {
+      "description": "Group minor and patch updates per agent folder and merge them when CI passes",
+      "matchFileNames": ["forge-*/**"],
+      "matchUpdateTypes": ["minor", "patch", "lockFileMaintenance"],
+      "groupName": "non-major dependencies",
+      "automerge": true
+    },
+    {
+      "description": "GitHub Actions: group non-major updates and merge them when CI passes",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "github actions",
+      "automerge": true
+    }
+  ]
+}
