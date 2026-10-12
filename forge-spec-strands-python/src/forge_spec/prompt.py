@@ -28,6 +28,8 @@ never hide an assumption inside a criterion.
 10. Write plain, specific English. No filler and no marketing words. Refer to people by role, never by name.
 11. `source_label` names the source briefly (for example "Refinement call, 21 min"). `reference_style` says what \
 the references mean (for example "transcript timestamps" or "line numbers in the notes").
+
+Answer only by calling the SpecResult tool, once, with the complete result. Do not reply in prose.
 """
 
 

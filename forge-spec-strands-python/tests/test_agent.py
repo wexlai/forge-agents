@@ -31,3 +31,7 @@ def test_generate_spec_sends_system_prompt_source_and_output_tool(sample_payload
 def test_system_prompt_states_the_core_rules():
     for rule in ("Use only what the source says", "line N", "Assumptions", "Open questions", "by role"):
         assert rule in SYSTEM_PROMPT
+
+
+def test_system_prompt_requires_answering_through_the_output_tool():
+    assert "Answer only by calling the SpecResult tool" in SYSTEM_PROMPT

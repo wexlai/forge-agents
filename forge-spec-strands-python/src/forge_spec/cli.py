@@ -26,6 +26,8 @@ def main(argv: list[str] | None = None, *, model: Model | None = None) -> int:
 
     try:
         source = load_source(args.input)
+        if args.out:
+            _check_out(args.out)
         if model is None:
             load_dotenv(Path.cwd() / ".env")
             model = build_model(os.environ)
@@ -41,7 +43,21 @@ def main(argv: list[str] | None = None, *, model: Model | None = None) -> int:
 
     output = to_markdown(result) if args.format == "markdown" else to_jira_csv(result)
     if args.out:
-        args.out.write_text(output, encoding="utf-8")
-    else:
-        sys.stdout.write(output)
+        try:
+            args.out.write_text(output, encoding="utf-8")
+            return 0
+        except OSError as exc:
+            # The model call is already paid for: keep the result rather than lose it.
+            print(f"forge-spec: could not write {args.out}: {exc}; printing the result instead", file=sys.stderr)
+            sys.stdout.write(output)
+            return 1
+    sys.stdout.write(output)
     return 0
+
+
+def _check_out(out: Path) -> None:
+    """Fail before the model call if --out cannot be written."""
+    if out.is_dir():
+        raise InputError(f"--out {out}: is a directory")
+    if not out.parent.is_dir():
+        raise InputError(f"--out {out}: directory does not exist")

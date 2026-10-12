@@ -61,3 +61,30 @@ def test_model_failure_exits_1_and_writes_nothing(notes, tmp_path, capsys):
     err = capsys.readouterr().err
     assert "generation failed" in err and "upstream 500" in err
     assert not out.exists()
+
+
+def test_out_in_missing_directory_exits_2_before_any_model_call(notes, tmp_path, capsys, sample_payload):
+    stub = StubModel(sample_payload)
+    assert main([str(notes), "--out", str(tmp_path / "missing" / "spec.md")], model=stub) == 2
+    assert stub.calls == []
+    assert "directory does not exist" in capsys.readouterr().err
+
+
+def test_out_that_is_a_directory_exits_2_before_any_model_call(notes, tmp_path, capsys, sample_payload):
+    stub = StubModel(sample_payload)
+    assert main([str(notes), "--out", str(tmp_path)], model=stub) == 2
+    assert stub.calls == []
+    assert "is a directory" in capsys.readouterr().err
+
+
+def test_write_failure_keeps_the_result_on_stdout(notes, tmp_path, monkeypatch, capsys, sample_payload):
+    out = tmp_path / "spec.md"
+
+    def refuse(*args, **kwargs):
+        raise PermissionError("read-only file system")
+
+    monkeypatch.setattr(type(out), "write_text", refuse)
+    assert main([str(notes), "--out", str(out)], model=StubModel(sample_payload)) == 1
+    captured = capsys.readouterr()
+    assert "could not write" in captured.err and "read-only file system" in captured.err
+    assert captured.out.startswith("# Epic:")
