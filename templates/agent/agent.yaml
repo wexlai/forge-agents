@@ -1,0 +1,15 @@
+id: __ID__
+name: __NAME__
+framework: __FRAMEWORK__
+language: __LANGUAGE__
+status: experimental
+description: "__DESCRIPTION__"
+# catalog: https://wexlai.com/forge/forge-__ID__
+providers: [openai, anthropic]
+commands:
+  setup: uv sync
+  test: uv run pytest
+  example: uv run forge-__ID__ examples/example.input.txt
+runtime:
+  python: "3.12"
+maintainers: ["@wexlai/forge"]
