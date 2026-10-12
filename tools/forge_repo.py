@@ -188,6 +188,48 @@ def validate(root: Path, names: list[str] | None = None) -> list[str]:
     return unknown + [f"{f.name}: {e}" for f in folders for e in check_folder(f)]
 
 
+def _cell(value: object) -> str:
+    return str(value).replace("|", "\\|").replace("\n", " ")
+
+
+def render_index(root: Path) -> str:
+    rows = []
+    for folder in agent_folders(root):
+        m = load_manifest(folder)
+        rows.append((m["id"], folder.name, m))
+    rows.sort(key=lambda row: (row[0], row[1]))
+    lines = [
+        "| Agent | Framework | Language | Status | Description |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for _, name, m in rows:
+        lines.append(
+            f"| [{_cell(m['name'])}]({name}/) | {m['framework']} | {m['language']} | {m['status']} | {_cell(m['description'])} |"
+        )
+    if not rows:
+        lines.append("| _No agents yet_ | | | | |")
+    return "\n".join(lines)
+
+
+def replace_index(readme_text: str, table: str) -> str:
+    start = readme_text.find(INDEX_START)
+    end = readme_text.find(INDEX_END)
+    if start == -1 or end == -1 or end < start:
+        raise ValueError(f"README.md must contain {INDEX_START} followed by {INDEX_END}")
+    return readme_text[: start + len(INDEX_START)] + "\n" + table + "\n" + readme_text[end:]
+
+
+def update_index(root: Path, check: bool = False) -> bool:
+    readme = root / "README.md"
+    text = readme.read_text(encoding="utf-8")
+    new = replace_index(text, render_index(root))
+    if new == text:
+        return True
+    if not check:
+        readme.write_text(new, encoding="utf-8")
+    return False
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="forge_repo", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -196,6 +238,8 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     p_validate = sub.add_parser("validate", help="check agent folders")
     p_validate.add_argument("folders", nargs="*")
+    p_index = sub.add_parser("index", help="rewrite the agent table in README.md")
+    p_index.add_argument("--check", action="store_true", help="fail if the table is out of date; do not write")
     args = parser.parse_args(argv)
     root = args.root.resolve()
 
@@ -206,6 +250,22 @@ def main(argv: list[str] | None = None) -> int:
         if not errors:
             print("ok: all agent folders are valid")
         return 1 if errors else 0
+    if args.command == "index":
+        errors = validate(root)
+        if errors:
+            for error in errors:
+                print(error, file=sys.stderr)
+            print("fix these before regenerating the index", file=sys.stderr)
+            return 1
+        try:
+            current = update_index(root, check=args.check)
+        except ValueError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        if args.check and not current:
+            print("README.md agent table is out of date; run: uv run tools/forge_repo.py index", file=sys.stderr)
+            return 1
+        return 0
     return 2
 
 
