@@ -70,7 +70,7 @@ git commit -s -m "your message"
 
 ## For maintainers
 
-- Branch protection on `main`: require a pull request, and require the `validate` and `ci` checks to pass.
+- Branch protection on `main`: require a pull request, and require the `validate` and `ci` checks to pass. `ci` is the summary job in `ci.yml`; do not require the per-folder jobs, which only run when their folder changes.
 - Install the [DCO GitHub App](https://github.com/apps/dco) on the repository.
 - Install the [Renovate GitHub App](https://github.com/apps/renovate) on the repository.
 - Repository secrets for the weekly live run: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and optionally `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (with repository variable `AWS_REGION`).

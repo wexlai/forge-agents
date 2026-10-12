@@ -92,3 +92,18 @@ jobs:
         env:
           CMD: ${{ matrix.test }}
         run: bash -euo pipefail -c "$CMD"
+
+  ci:
+    # The one check to require in branch protection: it reports even when no agent folder changed.
+    name: ci
+    needs: [detect, test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if detection or any agent's tests failed
+        env:
+          DETECT: ${{ needs.detect.result }}
+          TEST: ${{ needs.test.result }}
+        run: |
+          echo "detect=$DETECT test=$TEST"
+          [ "$DETECT" = "success" ] && { [ "$TEST" = "success" ] || [ "$TEST" = "skipped" ]; }
